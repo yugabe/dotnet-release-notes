@@ -1,0 +1,36 @@
+.combine-page {
+    max-width: 980px;
+    margin: 0 auto;
+}
+
+.combine-page.release-page-wide {
+    max-width: 1600px;
+}
+
+.combined-output {
+    border-top: 1px solid #ddd;
+    padding-top: 1rem;
+}
+
+.combined-content {
+    font-size: 1rem;
+    line-height: 1.75;
+}
+
+.combined-content img {
+    max-width: 100%;
+    height: auto;
+}
+
+.combined-content blockquote {
+    border-left: 4px solid #ccc;
+    margin-left: 0;
+    padding-left: 1rem;
+    color: #555;
+}
+
+@media (max-width: 768px) {
+    .combine-page {
+        padding: 0 1rem;
+    }
+}

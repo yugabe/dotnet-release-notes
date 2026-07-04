@@ -1,0 +1,1008 @@
+@page "/releases"
+@page "/releases/{*ReleasePath}"
+@page "/release-notes"
+@page "/release-notes/{*ReleasePath}"
+@using Microsoft.AspNetCore.Components.Rendering
+@using Microsoft.JSInterop
+@inject DotNetReleaseNotesCombiner.Services.MarkdownFetchService MarkdownFetchService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Release Notes Browser</PageTitle>
+
+<div class="combine-page px-4 py-3 @(IsWideLayout ? "release-page-wide" : string.Empty)">
+    <div class="release-topbar mb-3">
+        <div class="release-topbar-left">
+            @if (ShowNavigation)
+            {
+                <button class="btn btn-outline-secondary btn-sm release-nav-toggle" @onclick="ToggleNavigation" aria-label="Toggle navigation">
+                    <span class="hamburger">☰</span>
+                </button>
+            }
+            @if (!string.IsNullOrEmpty(SourceUrl))
+            {
+                <a class="source-link text-truncate" href="@SourceUrl" target="_blank" rel="noopener noreferrer">@SourceUrl</a>
+            }
+            else
+            {
+                var display = "release-notes" + (string.IsNullOrEmpty(CurrentPath) ? string.Empty : "/" + CurrentPath);
+                <a class="source-link text-truncate" href="@GetSourceUrlForPath(NormalizePath(CurrentPath), DirectoryEntries ?? Array.Empty<DotNetReleaseNotesCombiner.Services.MarkdownFetchService.GitHubDirectoryItem>())" target="_blank" rel="noopener noreferrer">@display</a>
+            }
+        </div>
+        <div class="release-topbar-center">
+            @if (IsLoading)
+            {
+                <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                    <span class="visually-hidden">Loading</span>
+                </div>
+            }
+        </div>
+        <div class="release-topbar-right">
+            <button type="button" class="btn btn-outline-secondary btn-sm me-2" @onclick="CycleThemeMode" aria-label="@GetThemeButtonTitle()" title="@GetThemeButtonTitle()">
+                @GetThemeButtonIcon()
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="ToggleWideLayout" aria-pressed="@(IsWideLayout)" aria-label="@(IsWideLayout ? "Switch to narrow layout" : "Switch to wide layout")" title="@(IsWideLayout ? "Switch to narrow layout" : "Switch to wide layout")">
+                @(IsWideLayout ? "⤡" : "⤢")
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="alert alert-danger mt-2">@ErrorMessage</div>
+    }
+
+    <div class="release-notes-layout @(!IsNavigationVisible ? "collapsed-nav" : string.Empty)">
+        <aside class="release-sidebar @(IsNavigationVisible ? "nav-open" : "nav-closed")" aria-hidden="@(!IsNavigationVisible)">
+            <div class="release-sidebar-inner">
+                <div class="sidebar-card mb-3">
+                    @if (HeadingTree.Any())
+                    {
+                        <div class="sidebar-section mb-3">
+                            <ul class="list-unstyled overview-tree mb-0">
+                                @foreach (var node in HeadingTree)
+                                {
+                                    @RenderHeadingNode(node)
+                                }
+                            </ul>
+                        </div>
+                    }
+                </div>
+            </div>
+        </aside>
+
+        @if (ShowNavigation)
+        {
+            <button type="button"
+                    class="release-sidebar-backdrop @(IsNavigationVisible ? "visible" : string.Empty)"
+                    aria-label="Close navigation"
+                    tabindex="-1"
+                    @onclick="CloseNavigation"></button>
+        }
+
+        <section class="release-main">
+            <div class="directory-card mb-3">
+                <div class="directory-header d-flex justify-content-between align-items-center mb-2">
+                    <nav class="directory-breadcrumb" aria-label="Breadcrumb">
+                        <ol class="breadcrumb mb-0">
+                            @if (BreadcrumbSegments.Count == 0)
+                            {
+                                <li class="breadcrumb-item active" aria-current="page">
+                                    <span class="text-body">release-notes</span>
+                                </li>
+                            }
+                            else
+                            {
+                                <li class="breadcrumb-item">
+                                    <a class="text-decoration-none" href="/release-notes">release-notes</a>
+                                </li>
+                            }
+
+                            @for (var i = 0; i < BreadcrumbSegments.Count; i++)
+                            {
+                                var segment = BreadcrumbSegments[i];
+                                if (i == BreadcrumbSegments.Count - 1)
+                                {
+                                    <li class="breadcrumb-item active" aria-current="page">
+                                        <span class="text-body">@segment.Label</span>
+                                    </li>
+                                }
+                                else
+                                {
+                                    <li class="breadcrumb-item">
+                                        <a class="text-decoration-none" href="@GetBreadcrumbHref(segment.Path)">@segment.Label</a>
+                                    </li>
+                                }
+                            }
+                        </ol>
+                    </nav>
+                    @if (HasCombinedDocument)
+                    {
+                        <button class="btn btn-sm btn-outline-secondary directory-toggle" type="button" @onclick="ToggleDirectory" aria-expanded="@(IsDirectoryCollapsed)">@(IsDirectoryCollapsed ? "+" : "−")</button>
+                    }
+                </div>
+            @if (ShouldShowDirectory)
+                {
+                    @if (!DirectoryEntries?.Any() == true)
+                    {
+                        <div class="alert alert-light">No entries found for this path.</div>
+                    }
+                    <div class="release-directory-table-wrapper">
+                        <div class="table-responsive">
+                            <table class="table table-borderless table-sm mb-0 directory-table">
+                            <tbody>
+                                @if (!string.IsNullOrEmpty(ParentPath))
+                                {
+                                    <tr>
+                                        <td class="py-1 px-0" style="white-space: nowrap;">
+                                            <a href="@GetParentHref()" class="text-decoration-none d-flex align-items-center">
+                                                <span class="me-2">📁</span>
+                                                <span>..</span>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                                @foreach (var entry in SortedDirectoryEntries)
+                                {
+                                    var isDir = string.Equals(entry.Type, "dir", StringComparison.OrdinalIgnoreCase);
+                                    <tr>
+                                        <td class="py-1 px-0" style="white-space: nowrap;">
+                                            <a class="text-decoration-none d-flex align-items-center" href="@GetEntryHref(entry)">
+                                                <span class="me-2">@(isDir ? "📁" : "📄")</span>
+                                                <span>@entry.Name</span>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            </div>
+            @if (CombinedSections.Any())
+            {
+                <div class="combined-output mt-4">
+                    <div class="combined-content">
+                        @for (var i = 0; i < CombinedSections.Count; i++)
+                        {
+                            var section = CombinedSections[i];
+                            if (i == 0)
+                            {
+                                <div class="included-section-root">
+                                    @((MarkupString)section.Html)
+                                </div>
+                            }
+                            else
+                            {
+                                <details class="included-section">
+                                    <summary>
+                                        <span class="included-section-summary-title">@section.Title</span>
+                                        @if (!string.IsNullOrWhiteSpace(section.SourceUrl))
+                                        {
+                                            <input type="checkbox"
+                                                   class="form-check-input included-read-toggle"
+                                                   checked="@IsIncludedSectionRead(section.SourceUrl)"
+                                                   aria-label="Mark included section as read"
+                                                   @onclick:stopPropagation="true"
+                                                   @onchange="@(e => OnIncludedReadChangedAsync(section.SourceUrl, e))" />
+                                        }
+                                    </summary>
+                                    <div class="included-section-body">
+                                        @if (!string.IsNullOrWhiteSpace(section.SourceUrl))
+                                        {
+                                            <div class="included-section-meta">
+                                                Included from <a href="@section.SourceUrl" target="_blank" rel="noopener noreferrer">@section.SourceUrl</a>
+                                            </div>
+                                        }
+                                        @((MarkupString)section.Html)
+                                    </div>
+                                </details>
+                            }
+                        }
+                    </div>
+
+                    @if (IsLoading)
+                    {
+                        <div class="combined-loading-overlay" aria-hidden="true">
+                            <div class="combined-loading-bars">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+                    }
+
+                </div>
+            }
+            else if (IsLoading)
+            {
+                <div class="combined-output combined-loading-shell mt-4" aria-hidden="true">
+                    <div class="combined-loading-bars">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            }
+        </section>
+    </div>
+
+    <button class="scroll-top-btn @(ShowScrollToTop ? "visible" : string.Empty)"
+            type="button"
+            aria-label="Scroll to top"
+            @onclick="ScrollToTop">
+        ↑
+    </button>
+</div>
+
+@code {
+    private const string WideLayoutPreferenceKey = "dotnet-release-notes:ui:wide-layout";
+    private const string ThemePreferenceKey = "dotnet-release-notes:ui:theme";
+    private const string IncludedReadPreferencePrefix = "dotnet-release-notes:included-read:";
+
+    [Parameter]
+    public string? ReleasePath { get; set; }
+
+    [SupplyParameterFromQuery(Name = "path")]
+    public string? QueryPath { get; set; }
+
+    [SupplyParameterFromQuery(Name = "fromHome")]
+    public string? FromHome { get; set; }
+
+    private string CurrentPath { get; set; } = string.Empty;
+    private string SourceUrl { get; set; } = string.Empty;
+    private string ParentPath { get; set; } = string.Empty;
+    private bool IsNavCollapsed { get; set; } = false;
+    private bool IsDirectoryCollapsed { get; set; } = true;
+    private bool IsWideLayout { get; set; }
+    private bool _responsiveNavInitialized;
+    private bool _shouldHighlight { get; set; }
+    private bool _shouldInitScrollSpy { get; set; }
+    private bool ShowScrollToTop { get; set; }
+    private string ThemeMode { get; set; } = "auto";
+    private string _activeHeadingId { get; set; } = string.Empty;
+    private string ErrorMessage { get; set; } = string.Empty;
+    private bool IsLoading { get; set; }
+    private DotNetObjectReference<Releases>? _dotNetRef;
+    private IReadOnlyList<DotNetReleaseNotesCombiner.Services.MarkdownFetchService.GitHubDirectoryItem>? DirectoryEntries { get; set; }
+    private IEnumerable<DotNetReleaseNotesCombiner.Services.MarkdownFetchService.GitHubDirectoryItem> SortedDirectoryEntries =>
+        DirectoryEntries == null
+            ? Array.Empty<DotNetReleaseNotesCombiner.Services.MarkdownFetchService.GitHubDirectoryItem>()
+            : DirectoryEntries.OrderBy(item => item.Type != "dir").ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<CombinedSection> CombinedSections { get; set; } = Array.Empty<CombinedSection>();
+    private Dictionary<string, bool> IncludedReadByUrl { get; } = new(StringComparer.Ordinal);
+    private IReadOnlyList<(int Level, string Text, string Id)> PageHeadings { get; set; } = Array.Empty<(int Level, string Text, string Id)>();
+    private IReadOnlyList<HeadingNode> HeadingTree { get; set; } = Array.Empty<HeadingNode>();
+    private IReadOnlyList<(string Label, string Path)> BreadcrumbSegments { get; set; } = Array.Empty<(string Label, string Path)>();
+    private bool HasCombinedDocument => CombinedSections.Any();
+    private bool ShowNavigation => HasCombinedDocument && HeadingTree.Any();
+    private bool IsNavigationVisible => ShowNavigation && !IsNavCollapsed;
+    private bool ShouldShowDirectory => !HasCombinedDocument || !IsDirectoryCollapsed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var stored = await JSRuntime.InvokeAsync<string?>("releaseNotesCache.get", WideLayoutPreferenceKey);
+            IsWideLayout = string.Equals(stored, "1", StringComparison.Ordinal);
+        }
+        catch
+        {
+            IsWideLayout = false;
+        }
+
+        try
+        {
+            var storedTheme = await JSRuntime.InvokeAsync<string?>("releaseNotesCache.get", ThemePreferenceKey);
+            ThemeMode = storedTheme is "light" or "dark" or "auto" ? storedTheme : "auto";
+        }
+        catch
+        {
+            ThemeMode = "auto";
+        }
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("releaseNotesTheme.apply", ThemeMode);
+        }
+        catch
+        {
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var uri = new Uri(NavigationManager.Uri);
+        if (uri.AbsolutePath.StartsWith("/releases", StringComparison.OrdinalIgnoreCase))
+        {
+            var suffix = uri.AbsolutePath.Length > "/releases".Length
+                ? uri.AbsolutePath["/releases".Length..]
+                : string.Empty;
+            var target = $"/release-notes{suffix}{uri.Query}";
+            NavigationManager.NavigateTo(target, replace: true);
+            return;
+        }
+
+        var requestedPath = !string.IsNullOrWhiteSpace(ReleasePath) ? ReleasePath : QueryPath;
+        CurrentPath = NormalizePath(requestedPath ?? string.Empty);
+
+        if (ShouldRedirectToCanonical(CurrentPath))
+        {
+            var canonicalPath = await MarkdownFetchService.ResolveCanonicalReleasePathAsync(CurrentPath);
+            var canonicalRoutePath = NormalizePath(canonicalPath ?? string.Empty);
+            if (!string.Equals(canonicalRoutePath, CurrentPath, StringComparison.OrdinalIgnoreCase))
+            {
+                NavigationManager.NavigateTo(BuildReleaseUrl(canonicalRoutePath), replace: true);
+                return;
+            }
+        }
+
+        SourceUrl = string.Empty;
+        ParentPath = GetParentPath(CurrentPath);
+        await LoadPathAsync();
+    }
+
+    private async Task LoadPathAsync()
+    {
+        IsLoading = true;
+
+        var normalizedPath = NormalizePath(CurrentPath);
+        ParentPath = GetParentPath(normalizedPath);
+
+        ErrorMessage = string.Empty;
+
+        try
+        {
+            var entries = await MarkdownFetchService.GetReleaseNotesDirectoryContentsAsync(normalizedPath);
+            DirectoryEntries = entries;
+
+            var source = GetSourceUrlForPath(normalizedPath, entries);
+            SourceUrl = source;
+
+            var markdown = await MarkdownFetchService.FetchAndCombineAsync(normalizedPath);
+            if (!string.IsNullOrEmpty(markdown))
+            {
+                var sections = BuildCombinedSections(markdown)
+                    .Select(section => section with { Html = MarkdownFetchService.ConvertMarkdownToHtml(section.Markdown) })
+                    .ToArray();
+                await LoadIncludedReadStatesAsync(sections);
+                CombinedSections = sections;
+
+                var combinedHtmlForHeadings = string.Join(Environment.NewLine, CombinedSections.Select(section => section.Html));
+                PageHeadings = MarkdownFetchService.ExtractHeadingsFromHtml(combinedHtmlForHeadings);
+                HeadingTree = BuildHeadingTree(PageHeadings);
+                BreadcrumbSegments = BuildBreadcrumbSegments(normalizedPath);
+                _shouldHighlight = true;
+                _shouldInitScrollSpy = true;
+            }
+            else
+            {
+                CombinedSections = Array.Empty<CombinedSection>();
+                IncludedReadByUrl.Clear();
+                PageHeadings = Array.Empty<(int Level, string Text, string Id)>();
+                _activeHeadingId = string.Empty;
+                HeadingTree = Array.Empty<HeadingNode>();
+                BreadcrumbSegments = BuildBreadcrumbSegments(normalizedPath);
+            }
+
+            ErrorMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private string GetEntryHref(DotNetReleaseNotesCombiner.Services.MarkdownFetchService.GitHubDirectoryItem entry)
+    {
+        var basePath = CurrentPath;
+        if (!string.IsNullOrEmpty(basePath) && basePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            basePath = GetParentPath(NormalizePath(basePath));
+        }
+
+        var entryName = entry.Name;
+        var nextPath = string.IsNullOrEmpty(basePath) ? entryName : $"{basePath}/{entryName}";
+        return BuildReleaseUrl(nextPath);
+    }
+
+    private void GoToPath()
+    {
+        var normalized = CurrentPath.Trim('/');
+        NavigationManager.NavigateTo(BuildReleaseUrl(normalized));
+    }
+
+    private static string BuildReleaseUrl(string? path)
+    {
+        var normalized = path?.Trim('/') ?? string.Empty;
+        return string.IsNullOrEmpty(normalized)
+            ? "/release-notes"
+            : $"/release-notes/{normalized}/";
+    }
+
+    private bool ShouldRedirectToCanonical(string normalizedPath)
+    {
+        return string.IsNullOrWhiteSpace(normalizedPath)
+            && string.Equals(FromHome, "1", StringComparison.Ordinal);
+    }
+
+    private string NormalizePath(string path)
+    {
+        var normalizedPath = path?.Trim('/') ?? string.Empty;
+        if (string.Equals(normalizedPath, "README.md", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        normalizedPath = System.Text.RegularExpressions.Regex.Replace(normalizedPath, "/README\\.md(/|$)", "/", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return normalizedPath.Trim('/');
+    }
+
+    private string GetParentPath(string normalizedPath)
+    {
+        if (string.IsNullOrEmpty(normalizedPath))
+        {
+            return string.Empty;
+        }
+
+        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length <= 1)
+        {
+            return string.Empty;
+        }
+
+        return string.Join('/', segments.Take(segments.Length - 1));
+    }
+
+    private string GetSourceUrlForPath(string normalizedPath, IReadOnlyList<DotNetReleaseNotesCombiner.Services.MarkdownFetchService.GitHubDirectoryItem> entries)
+    {
+        if (!string.IsNullOrWhiteSpace(SourceUrl))
+        {
+            return SourceUrl;
+        }
+
+        // Link to the canonical GitHub location of the release-notes in the dotnet/core repo
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            return "https://github.com/dotnet/core/tree/main/release-notes";
+        }
+
+        if (entries.Any())
+        {
+            // Directory view
+            return $"https://github.com/dotnet/core/tree/main/release-notes/{normalizedPath}";
+        }
+
+        // File view - link to blob
+        return normalizedPath.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+            ? $"https://github.com/dotnet/core/blob/main/release-notes/{normalizedPath}"
+            : $"https://github.com/dotnet/core/blob/main/release-notes/{normalizedPath}/README.md";
+    }
+
+    private string GetParentHref()
+    {
+        return BuildReleaseUrl(ParentPath);
+    }
+
+    private string GetBreadcrumbHref(string path)
+    {
+        return BuildReleaseUrl(path);
+    }
+
+    private IReadOnlyList<(string Label, string Path)> BuildBreadcrumbSegments(string normalizedPath)
+    {
+        if (string.IsNullOrEmpty(normalizedPath))
+        {
+            return Array.Empty<(string Label, string Path)>();
+        }
+
+        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var crumbs = new List<(string Label, string Path)>();
+        for (var i = 0; i < segments.Length; i++)
+        {
+            var path = string.Join('/', segments.Take(i + 1));
+            crumbs.Add((segments[i], path));
+        }
+
+        return crumbs;
+    }
+
+    private void ToggleNavigation()
+    {
+        IsNavCollapsed = !IsNavCollapsed;
+    }
+
+    private void CloseNavigation()
+    {
+        IsNavCollapsed = true;
+    }
+
+    private async Task OnHeadingLinkClickAsync()
+    {
+        try
+        {
+            var isNarrowViewport = await JSRuntime.InvokeAsync<bool>("releaseNotes.isNarrowViewport", 991);
+            if (isNarrowViewport)
+            {
+                IsNavCollapsed = true;
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static string BuildIncludedReadPreferenceKey(string sourceUrl)
+    {
+        return IncludedReadPreferencePrefix + Uri.EscapeDataString(sourceUrl);
+    }
+
+    private bool IsIncludedSectionRead(string? sourceUrl)
+    {
+        if (string.IsNullOrWhiteSpace(sourceUrl))
+        {
+            return false;
+        }
+
+        return IncludedReadByUrl.TryGetValue(sourceUrl, out var isRead) && isRead;
+    }
+
+    private async Task LoadIncludedReadStatesAsync(IEnumerable<CombinedSection> sections)
+    {
+        IncludedReadByUrl.Clear();
+
+        var urls = sections
+            .Select(section => section.SourceUrl)
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Distinct(StringComparer.Ordinal)
+            .Cast<string>();
+
+        foreach (var sourceUrl in urls)
+        {
+            try
+            {
+                var stored = await JSRuntime.InvokeAsync<string?>("releaseNotesCache.get", BuildIncludedReadPreferenceKey(sourceUrl));
+                if (string.Equals(stored, "1", StringComparison.Ordinal))
+                {
+                    IncludedReadByUrl[sourceUrl] = true;
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private async Task OnIncludedReadChangedAsync(string? sourceUrl, ChangeEventArgs args)
+    {
+        if (string.IsNullOrWhiteSpace(sourceUrl))
+        {
+            return;
+        }
+
+        var isChecked = false;
+        if (args.Value is bool boolValue)
+        {
+            isChecked = boolValue;
+        }
+        else if (args.Value is string stringValue)
+        {
+            isChecked = string.Equals(stringValue, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(stringValue, "on", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (isChecked)
+        {
+            IncludedReadByUrl[sourceUrl] = true;
+        }
+        else
+        {
+            IncludedReadByUrl.Remove(sourceUrl);
+        }
+
+        try
+        {
+            var key = BuildIncludedReadPreferenceKey(sourceUrl);
+            if (isChecked)
+            {
+                await JSRuntime.InvokeVoidAsync("releaseNotesCache.set", key, "1");
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("releaseNotesCache.remove", key);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private void ToggleDirectory()
+    {
+        IsDirectoryCollapsed = !IsDirectoryCollapsed;
+    }
+
+    private async Task ToggleWideLayout()
+    {
+        IsWideLayout = !IsWideLayout;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("releaseNotesCache.set", WideLayoutPreferenceKey, IsWideLayout ? "1" : "0");
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task SetThemeMode(string mode)
+    {
+        if (mode is not ("auto" or "light" or "dark"))
+        {
+            return;
+        }
+
+        ThemeMode = mode;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("releaseNotesCache.set", ThemePreferenceKey, ThemeMode);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("releaseNotesTheme.apply", ThemeMode);
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task CycleThemeMode()
+    {
+        var nextMode = ThemeMode switch
+        {
+            "auto" => "light",
+            "light" => "dark",
+            _ => "auto"
+        };
+
+        await SetThemeMode(nextMode);
+    }
+
+    private string GetThemeButtonIcon()
+    {
+        return ThemeMode switch
+        {
+            "light" => "☼",
+            "dark" => "◐",
+            _ => "A"
+        };
+    }
+
+    private string GetThemeButtonTitle()
+    {
+        return ThemeMode switch
+        {
+            "light" => "Theme: light (click to switch to dark)",
+            "dark" => "Theme: dark (click to switch to auto)",
+            _ => "Theme: auto (click to switch to light)"
+        };
+    }
+
+    private async Task ScrollToTop()
+    {
+        await JSRuntime.InvokeVoidAsync("releaseNotes.scrollToTop");
+    }
+
+    private string GetHeadingHref(string headingId)
+    {
+        var currentUri = new Uri(NavigationManager.Uri);
+        return $"{currentUri.AbsolutePath}{currentUri.Query}#{Uri.EscapeDataString(headingId)}";
+    }
+
+    private IReadOnlyList<CombinedSection> BuildCombinedSections(string markdown)
+    {
+        var markerRegex = new System.Text.RegularExpressions.Regex(@"\*Included from \[(?<text>[^\]]+)\]\((?<url>[^\)]+)\)\*", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var matches = markerRegex.Matches(markdown);
+        if (matches.Count == 0)
+        {
+            return new[] { new CombinedSection(null, ExtractSectionTitle(markdown) ?? "Release notes", markdown, string.Empty) };
+        }
+
+        var sections = new List<CombinedSection>();
+        var firstMarker = matches[0];
+        var rootContent = markdown[..firstMarker.Index].Trim();
+        if (!string.IsNullOrWhiteSpace(rootContent))
+        {
+            sections.Add(new CombinedSection(null, ExtractSectionTitle(rootContent) ?? "Release notes", rootContent, string.Empty));
+        }
+
+        for (var i = 0; i < matches.Count; i++)
+        {
+            var current = matches[i];
+            var contentStart = current.Index + current.Length;
+            while (contentStart < markdown.Length && (markdown[contentStart] == '\r' || markdown[contentStart] == '\n'))
+            {
+                contentStart++;
+            }
+
+            var contentEnd = i + 1 < matches.Count ? matches[i + 1].Index : markdown.Length;
+            var sectionMarkdown = markdown[contentStart..contentEnd].Trim();
+            if (string.IsNullOrWhiteSpace(sectionMarkdown))
+            {
+                continue;
+            }
+
+            var sourceUrl = current.Groups["url"].Value.Trim();
+            var title = ExtractSectionTitle(sectionMarkdown) ?? BuildSectionTitleFromSourceUrl(sourceUrl);
+            sections.Add(new CombinedSection(sourceUrl, title, sectionMarkdown, string.Empty));
+        }
+
+        return sections;
+    }
+
+    private static string? ExtractSectionTitle(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return null;
+        }
+
+        var headingMatch = System.Text.RegularExpressions.Regex.Match(markdown, @"(?m)^\s*#{1,6}\s+(.+?)\s*$");
+        if (!headingMatch.Success)
+        {
+            return null;
+        }
+
+        var title = headingMatch.Groups[1].Value.Trim();
+        title = System.Text.RegularExpressions.Regex.Replace(title, @"\s+#+\s*$", string.Empty);
+        return string.IsNullOrWhiteSpace(title) ? null : title;
+    }
+
+    private static string BuildSectionTitleFromSourceUrl(string? sourceUrl)
+    {
+        if (string.IsNullOrWhiteSpace(sourceUrl))
+        {
+            return "Included section";
+        }
+
+        try
+        {
+            var uri = new Uri(sourceUrl);
+            var name = uri.Segments.LastOrDefault()?.Trim('/');
+            return string.IsNullOrWhiteSpace(name) ? sourceUrl : name;
+        }
+        catch
+        {
+            return sourceUrl;
+        }
+    }
+
+    private void GoHome()
+    {
+        NavigationManager.NavigateTo(BuildReleaseUrl(null));
+    }
+
+    private RenderFragment<HeadingNode> RenderHeadingNode => node => @<li class="tree-node level-@node.Level @(IsNodeInActivePath(node) ? "active-path" : string.Empty)">
+        <div class="tree-node-header d-flex align-items-center">
+            @if (node.Children.Any())
+            {
+                <button type="button"
+                        class="tree-toggle btn btn-sm btn-link text-decoration-none text-body-secondary me-2"
+                        aria-expanded="@node.IsExpanded"
+                        @onclick="() => ToggleHeadingNode(node.Id)">
+                    @(node.IsExpanded ? "−" : "+")
+                </button>
+            }
+            else
+            {
+                <button type="button"
+                        class="tree-toggle tree-toggle-placeholder btn btn-sm btn-link text-decoration-none text-body-secondary me-2"
+                        aria-hidden="true"
+                        tabindex="-1"
+                        disabled>+</button>
+            }
+
+                            <a class="tree-link overview-link flex-grow-1 @(node.Id == _activeHeadingId ? "active" : string.Empty)"
+                                href="@GetHeadingHref(node.Id)"
+                                data-id="@node.Id"
+                                @onclick="OnHeadingLinkClickAsync">
+                @node.Text
+                        </a>
+        </div>
+
+        @if (node.Children.Any() && node.IsExpanded)
+        {
+            <ul class="list-unstyled tree-children expanded">
+                @foreach (var child in node.Children)
+                {
+                    @RenderHeadingNode(child)
+                }
+            </ul>
+        }
+    </li>;
+
+    private void ToggleHeadingNode(string id)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            return;
+        }
+
+        bool ToggleNode(IEnumerable<HeadingNode> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                if (node.Id == id)
+                {
+                    node.IsExpanded = !node.IsExpanded;
+                    return true;
+                }
+
+                if (node.Children.Any() && ToggleNode(node.Children))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (ToggleNode(HeadingTree))
+        {
+            StateHasChanged();
+        }
+    }
+
+    private static bool IsNodeInActivePath(HeadingNode node, string activeId)
+    {
+        if (string.IsNullOrEmpty(activeId))
+        {
+            return false;
+        }
+
+        if (node.Id == activeId)
+        {
+            return true;
+        }
+
+        return node.Children.Any(child => IsNodeInActivePath(child, activeId));
+    }
+
+    private bool IsNodeInActivePath(HeadingNode node)
+    {
+        return IsNodeInActivePath(node, _activeHeadingId);
+    }
+
+    [JSInvokable]
+    public void NotifyActiveHeading(string headingId)
+    {
+        if (string.IsNullOrEmpty(headingId) || _activeHeadingId == headingId)
+        {
+            return;
+        }
+
+        _activeHeadingId = headingId;
+        ExpandActiveHeadingPath(HeadingTree, headingId);
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void NotifyScrollTopVisibility(bool isVisible)
+    {
+        if (ShowScrollToTop == isVisible)
+        {
+            return;
+        }
+
+        ShowScrollToTop = isVisible;
+        StateHasChanged();
+    }
+
+    private static bool ExpandActiveHeadingPath(IEnumerable<HeadingNode> nodes, string activeId)
+    {
+        var foundInAny = false;
+        foreach (var node in nodes)
+        {
+            var found = node.Id == activeId;
+            if (node.Children.Any())
+            {
+                found |= ExpandActiveHeadingPath(node.Children, activeId);
+            }
+
+            node.IsExpanded = found && node.Children.Any();
+            if (found)
+            {
+                foundInAny = true;
+            }
+        }
+
+        return foundInAny;
+    }
+
+    private static IReadOnlyList<HeadingNode> BuildHeadingTree(IEnumerable<(int Level, string Text, string Id)> headings)
+    {
+        var root = new List<HeadingNode>();
+        var stack = new Stack<HeadingNode>();
+
+        foreach (var heading in headings)
+        {
+            var node = new HeadingNode
+            {
+                Level = Math.Clamp(heading.Level, 1, 6),
+                Text = heading.Text,
+                Id = heading.Id
+            };
+
+            while (stack.Any() && stack.Peek().Level >= node.Level)
+            {
+                stack.Pop();
+            }
+
+            if (stack.Any())
+            {
+                stack.Peek().Children.Add(node);
+            }
+            else
+            {
+                root.Add(node);
+            }
+
+            stack.Push(node);
+        }
+
+        return root;
+    }
+
+    private sealed class HeadingNode
+    {
+        public int Level { get; init; }
+        public string Text { get; init; } = string.Empty;
+        public string Id { get; init; } = string.Empty;
+        public List<HeadingNode> Children { get; } = new();
+        public bool IsExpanded { get; set; }
+    }
+
+    private sealed record CombinedSection(string? SourceUrl, string Title, string Markdown, string Html);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_responsiveNavInitialized && ShowNavigation)
+        {
+            _responsiveNavInitialized = true;
+            try
+            {
+                var isNarrowViewport = await JSRuntime.InvokeAsync<bool>("releaseNotes.isNarrowViewport", 991);
+                if (isNarrowViewport && !IsNavCollapsed)
+                {
+                    IsNavCollapsed = true;
+                    StateHasChanged();
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        if (_shouldHighlight)
+        {
+            _shouldHighlight = false;
+            await JSRuntime.InvokeVoidAsync("releaseNotes.highlightCodeBlocks");
+        }
+        if (_shouldInitScrollSpy)
+        {
+            _shouldInitScrollSpy = false;
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await JSRuntime.InvokeVoidAsync("releaseNotes.initScrollSpy", _dotNetRef, ".overview-link", ".combined-content h1, .combined-content h2, .combined-content h3, .combined-content h4");
+        }
+    }
+}
