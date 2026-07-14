@@ -50,7 +50,7 @@ public partial class Releases
         if (uri.AbsolutePath.StartsWith("/releases", StringComparison.OrdinalIgnoreCase))
         {
             var suffix = uri.AbsolutePath["/releases".Length..];
-            NavigationManager.NavigateTo($"/release-notes{suffix}{uri.Query}", replace: true);
+            NavigationManager.NavigateTo($"release-notes{suffix}{uri.Query}", replace: true);
             return;
         }
 
@@ -107,7 +107,7 @@ public partial class Releases
         return BuildReleaseUrl(string.IsNullOrEmpty(path) ? entry.Name : $"{path}/{entry.Name}");
     }
 
-    static string BuildReleaseUrl(string? path) => string.IsNullOrEmpty(path?.Trim('/')) ? "/release-notes" : $"/release-notes/{path.Trim('/')}/";
+    static string BuildReleaseUrl(string? path) => string.IsNullOrEmpty(path?.Trim('/')) ? "release-notes" : $"release-notes/{path.Trim('/')}/";
     static string NormalizePath(string path)
     {
         var result = path?.Trim('/') ?? "";

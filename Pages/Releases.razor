@@ -47,7 +47,7 @@
                 <div class="directory-header d-flex justify-content-between align-items-center mb-2">
                     <nav class="directory-breadcrumb" aria-label="Breadcrumb"><ol class="breadcrumb mb-0">
                         @if (BreadcrumbSegments.Count == 0) { <li class="breadcrumb-item active" aria-current="page"><span class="text-body">release-notes</span></li> }
-                        else { <li class="breadcrumb-item"><a class="text-decoration-none" href="/release-notes">release-notes</a></li> }
+                        else { <li class="breadcrumb-item"><a class="text-decoration-none" href="release-notes">release-notes</a></li> }
                         @for (var i = 0; i < BreadcrumbSegments.Count; i++)
                         {
                             var segment = BreadcrumbSegments[i];

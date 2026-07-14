@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 using Markdig;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 namespace DotNetReleaseNotesCombiner.Services;
@@ -38,12 +39,14 @@ public partial class MarkdownFetchService
 
     private readonly HttpClient _httpClient;
     private readonly IJSRuntime _jsRuntime;
+    private readonly NavigationManager _navigation;
     private readonly ConcurrentDictionary<string, Task<DirectoryFetchResult>> _directoryContentsCache = new(StringComparer.OrdinalIgnoreCase);
 
-    public MarkdownFetchService(HttpClient httpClient, IJSRuntime jsRuntime)
+    public MarkdownFetchService(HttpClient httpClient, IJSRuntime jsRuntime, NavigationManager navigation)
     {
         _httpClient = httpClient;
         _jsRuntime = jsRuntime;
+        _navigation = navigation;
     }
 
     public async Task<string> FetchAndCombineAsync(string relativePath, IProgress<string>? progress = null)
@@ -607,7 +610,7 @@ public partial class MarkdownFetchService
         return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
     }
 
-    private static string RewriteRelativeUrls(string markdown, string basePath)
+    private string RewriteRelativeUrls(string markdown, string basePath)
     {
         markdown = MarkdownImageRegex.Replace(markdown, match =>
         {
@@ -634,9 +637,8 @@ public partial class MarkdownFetchService
                     {
                         var remainder = path[(idx + marker.Length)..].Trim('/');
                         var routePath = NormalizeReleasePath(remainder);
-                        var appHref = string.IsNullOrEmpty(routePath)
-                            ? "/release-notes"
-                            : $"/release-notes/{routePath}/";
+                        var route = string.IsNullOrEmpty(routePath) ? "release-notes" : $"release-notes/{routePath}/";
+                        var appHref = _navigation.ToAbsoluteUri(route).ToString();
                         return match.Value.Replace(url, appHref);
                     }
                 }
