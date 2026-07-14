@@ -34,16 +34,8 @@ window.releaseNotes = {
 
         const target = document.getElementById(headingId);
         if (target) {
-            let parent = target.parentElement;
-            while (parent) {
-                if (parent.tagName === 'DETAILS') {
-                    parent.open = true;
-                }
-                parent = parent.parentElement;
-            }
-
-            const topBar = document.querySelector('.release-topbar');
-            const topOffset = (topBar ? topBar.getBoundingClientRect().height : 0) + 12;
+            openParentDetails(target);
+            const topOffset = getTopbarHeight() + 12;
             const targetTop = target.getBoundingClientRect().top + window.scrollY;
             window.scrollTo({
                 top: Math.max(targetTop - topOffset, 0),
@@ -68,25 +60,15 @@ window.releaseNotes = {
 
     initScrollSpy: (dotNetRef, navSelector, headingSelector) => {
         try {
-            if (window._releaseNotesScrollSpy && window._releaseNotesScrollSpy.onScroll) {
-                window.removeEventListener('scroll', window._releaseNotesScrollSpy.onScroll);
-            }
-            if (window._releaseNotesScrollSpy && window._releaseNotesScrollSpy.onHashChange) {
-                window.removeEventListener('hashchange', window._releaseNotesScrollSpy.onHashChange);
-            }
-            if (window._releaseNotesScrollSpy && window._releaseNotesScrollSpy.onNavClick) {
-                document.removeEventListener('click', window._releaseNotesScrollSpy.onNavClick);
-            }
-            if (window._releaseNotesScrollSpy && window._releaseNotesScrollSpy.onResize) {
-                window.removeEventListener('resize', window._releaseNotesScrollSpy.onResize);
+            if (window._releaseNotesScrollSpy && Array.isArray(window._releaseNotesScrollSpy.listeners)) {
+                window._releaseNotesScrollSpy.listeners.forEach(({ target, type, handler }) => target.removeEventListener(type, handler));
             }
 
             const getNavLinks = () => Array.from(document.querySelectorAll(navSelector));
             const getHeadings = () => Array.from(document.querySelectorAll(headingSelector));
 
             const syncTopbarOffset = () => {
-                const topBar = document.querySelector('.release-topbar');
-                const topOffset = topBar ? Math.max(topBar.getBoundingClientRect().bottom, 0) : 0;
+                const topOffset = Math.max(getTopbarBottom(), 0);
                 document.documentElement.style.setProperty('--release-topbar-offset', `${Math.max(topOffset, 0)}px`);
             };
 
@@ -133,16 +115,8 @@ window.releaseNotes = {
                     return;
                 }
 
-                let parent = target.parentElement;
-                while (parent) {
-                    if (parent.tagName === 'DETAILS') {
-                        parent.open = true;
-                    }
-                    parent = parent.parentElement;
-                }
-
-                const topBar = document.querySelector('.release-topbar');
-                const topOffset = (topBar ? topBar.getBoundingClientRect().height : 0) + 12;
+                openParentDetails(target);
+                const topOffset = getTopbarHeight() + 12;
                 const targetTop = target.getBoundingClientRect().top + window.scrollY;
                 window.scrollTo({ top: Math.max(targetTop - topOffset, 0), behavior: 'auto' });
             };
@@ -195,8 +169,7 @@ window.releaseNotes = {
                     }
 
                     let current = null;
-                    const topBar = document.querySelector('.release-topbar');
-                    const offset = (topBar ? topBar.getBoundingClientRect().height : 0) + 20;
+                    const offset = getTopbarHeight() + 20;
                     for (let i = 0; i < headings.length; i++) {
                         const r = headings[i].getBoundingClientRect();
                         if (r.top - offset <= 0) {
@@ -252,14 +225,31 @@ window.releaseNotes = {
                 window.releaseNotes.scrollToHeading(headingId);
             };
 
-            window.addEventListener('scroll', onScroll, { passive: true });
-            window.addEventListener('hashchange', onHashChange);
-            window.addEventListener('resize', onResize, { passive: true });
-            document.addEventListener('click', onNavClick);
-            window._releaseNotesScrollSpy = { onScroll, onHashChange, onNavClick, onResize };
+            const listeners = [
+                { target: window, type: 'scroll', handler: onScroll, options: { passive: true } },
+                { target: window, type: 'hashchange', handler: onHashChange },
+                { target: window, type: 'resize', handler: onResize, options: { passive: true } },
+                { target: document, type: 'click', handler: onNavClick }
+            ];
+            listeners.forEach(({ target, type, handler, options }) => target.addEventListener(type, handler, options));
+            window._releaseNotesScrollSpy = { listeners };
         } catch (e) {
             console.warn('initScrollSpy error', e);
         }
+    }
+};
+
+const getTopbarRect = () => document.querySelector('.release-topbar')?.getBoundingClientRect();
+const getTopbarHeight = () => getTopbarRect()?.height ?? 0;
+const getTopbarBottom = () => getTopbarRect()?.bottom ?? 0;
+
+const openParentDetails = (element) => {
+    let parent = element?.parentElement;
+    while (parent) {
+        if (parent.tagName === 'DETAILS') {
+            parent.open = true;
+        }
+        parent = parent.parentElement;
     }
 };
 
