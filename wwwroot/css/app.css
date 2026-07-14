@@ -550,7 +550,7 @@ code {
 .combined-content pre.code-wrap code {
     white-space: break-spaces;
     overflow-wrap: anywhere;
-    text-indent: 1.5em hanging;
+    text-indent: 1.5em hanging each-line;
 }
 
 .code-wrap-toggle {
