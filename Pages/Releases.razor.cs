@@ -7,7 +7,7 @@ namespace DotNetReleaseNotesCombiner.Pages;
 
 public partial class Releases
 {
-    const string WideKey = "dotnet-release-notes:ui:wide-layout", ThemeKey = "dotnet-release-notes:ui:theme", ReadPrefix = "dotnet-release-notes:included-read:";
+    const string WideKey = "dotnet-release-notes:ui:wide-layout", ThemeKey = "dotnet-release-notes:ui:theme", FontScaleKey = "dotnet-release-notes:ui:font-scale", ReadPrefix = "dotnet-release-notes:included-read:";
     private static Regex IncludedFrom => GetIncludedFromRegex();
     private static Regex HeadingTitle => GetHeadingTitleRegex();
     private static Regex HeadingTrailingHash => GetHeadingTrailingHashRegex();
@@ -22,6 +22,7 @@ public partial class Releases
     [SupplyParameterFromQuery(Name = "fromHome")] public string? FromHome { get; set; }
 
     string CurrentPath = "", SourceUrl = "", ParentPath = "", ThemeMode = "auto", ErrorMessage = "", _activeHeadingId = "";
+    int FontScale = 2;
     bool IsNavCollapsed, IsWideLayout, _responsiveNavInitialized, _shouldHighlight, _shouldInitScrollSpy, ShowScrollToTop, IsLoading;
     bool IsDirectoryCollapsed = true;
     DotNetObjectReference<Releases>? _dotNetRef;
@@ -41,6 +42,7 @@ public partial class Releases
         IsWideLayout = await CacheGet(WideKey) == "1";
         var theme = await CacheGet(ThemeKey);
         ThemeMode = theme is "light" or "dark" or "auto" ? theme : "auto";
+        if (int.TryParse(await CacheGet(FontScaleKey), out var scale)) FontScale = Math.Clamp(scale, 0, 4);
         await JS("releaseNotesTheme.apply", ThemeMode);
     }
 
@@ -115,6 +117,7 @@ public partial class Releases
         return ReadmeSegment.Replace(result, "/").Trim('/');
     }
     static string GetParentPath(string path) => path.Contains('/') ? path[..path.LastIndexOf('/')] : "";
+    static string DisplaySourceUrl(string url) => url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? url[8..] : url;
     static string GetSourceUrlForPath(string path, IReadOnlyList<MarkdownFetchService.GitHubDirectoryItem> entries)
     {
         const string root = "https://github.com/dotnet/core";
@@ -152,6 +155,8 @@ public partial class Releases
 
     void ToggleDirectory() => IsDirectoryCollapsed = !IsDirectoryCollapsed;
     async Task ToggleWideLayout() { IsWideLayout = !IsWideLayout; await JS("releaseNotesCache.set", WideKey, IsWideLayout ? "1" : "0"); }
+    async Task CycleFontScale() { FontScale = (FontScale + 1) % 5; await JS("releaseNotesCache.set", FontScaleKey, FontScale.ToString()); }
+    string GetFontScaleTitle() => $"Text size {FontScale + 1} of 5";
     async Task CycleThemeMode()
     {
         ThemeMode = ThemeMode switch { "auto" => "light", "light" => "dark", _ => "auto" };

@@ -8,22 +8,23 @@
 @inject IJSRuntime JSRuntime
 
 <PageTitle>Release Notes Browser</PageTitle>
-<div class="combine-page px-4 py-3 @(IsWideLayout ? "release-page-wide" : "")">
+<div class="combine-page px-4 py-3 font-scale-@FontScale @(IsWideLayout ? "release-page-wide" : "")">
     <div class="release-topbar mb-3">
         <div class="release-topbar-left">
             @if (ShowNavigation) { <button class="btn btn-outline-secondary btn-sm release-nav-toggle" @onclick="ToggleNavigation" aria-label="Toggle navigation"><span class="hamburger">☰</span></button> }
-            @if (!string.IsNullOrEmpty(SourceUrl)) { <a class="source-link text-truncate" href="@SourceUrl" target="_blank" rel="noopener noreferrer">@SourceUrl</a> }
+            @if (!string.IsNullOrEmpty(SourceUrl)) { <div class="source-link-scroll"><a class="source-link" href="@SourceUrl" target="_blank" rel="noopener noreferrer">@DisplaySourceUrl(SourceUrl)</a></div> }
             else
             {
                 var display = "release-notes" + (string.IsNullOrEmpty(CurrentPath) ? "" : "/" + CurrentPath);
-                <a class="source-link text-truncate" href="@GetSourceUrlForPath(NormalizePath(CurrentPath), DirectoryEntries ?? [])" target="_blank" rel="noopener noreferrer">@display</a>
+                <div class="source-link-scroll"><a class="source-link" href="@GetSourceUrlForPath(NormalizePath(CurrentPath), DirectoryEntries ?? [])" target="_blank" rel="noopener noreferrer">@display</a></div>
             }
         </div>
         <div class="release-topbar-center">
             @if (IsLoading) { <div class="spinner-border spinner-border-sm text-secondary" role="status"><span class="visually-hidden">Loading</span></div> }
         </div>
         <div class="release-topbar-right">
-            <button class="btn btn-outline-secondary btn-sm me-2" @onclick="CycleThemeMode" aria-label="@GetThemeButtonTitle()" title="@GetThemeButtonTitle()">@GetThemeButtonIcon()</button>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="CycleThemeMode" aria-label="@GetThemeButtonTitle()" title="@GetThemeButtonTitle()">@GetThemeButtonIcon()</button>
+            <button class="btn btn-outline-secondary btn-sm font-scale-toggle" @onclick="CycleFontScale" aria-label="@GetFontScaleTitle()" title="@GetFontScaleTitle()"><span aria-hidden="true">●</span></button>
             <button class="btn btn-outline-secondary btn-sm release-layout-toggle" @onclick="ToggleWideLayout" aria-pressed="@IsWideLayout" aria-label="@(IsWideLayout ? "Switch to narrow layout" : "Switch to wide layout")" title="@(IsWideLayout ? "Switch to narrow layout" : "Switch to wide layout")">@(IsWideLayout ? "⤡" : "⤢")</button>
         </div>
     </div>

@@ -5,12 +5,8 @@ window.releaseNotes = {
     },
 
     highlightCodeBlocks: () => {
-        if (!window.hljs) {
-            return;
-        }
-
         const codeBlocks = Array.from(document.querySelectorAll('.combined-content pre code, .combined-content code'));
-        if (codeBlocks.length > 0) {
+        if (window.hljs && codeBlocks.length > 0) {
             codeBlocks.forEach((block) => {
                 try {
                     hljs.highlightElement(block);
@@ -18,13 +14,31 @@ window.releaseNotes = {
                     // ignore individual highlight errors
                 }
             });
-        } else if (typeof hljs.highlightAll === 'function') {
+        } else if (window.hljs && typeof hljs.highlightAll === 'function') {
             try {
                 hljs.highlightAll();
             } catch {
                 // ignore
             }
         }
+
+        document.querySelectorAll('.combined-content pre').forEach((pre) => {
+            if (pre.querySelector(':scope > .code-wrap-toggle')) return;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'code-wrap-toggle';
+            button.textContent = '↩';
+            button.title = 'Code wrapping off';
+            button.setAttribute('aria-label', button.title);
+            button.setAttribute('aria-pressed', 'false');
+            button.addEventListener('click', () => {
+                const wrapped = pre.classList.toggle('code-wrap');
+                button.setAttribute('aria-pressed', String(wrapped));
+                button.title = wrapped ? 'Code wrapping on' : 'Code wrapping off';
+                button.setAttribute('aria-label', button.title);
+            });
+            pre.appendChild(button);
+        });
     },
 
     scrollToHeading: (headingId) => {

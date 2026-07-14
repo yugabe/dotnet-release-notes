@@ -11,17 +11,27 @@
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="css/combine.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <script type="importmap"></script>
 </head>
 
 <body>
     <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
+        <div class="loading-shell">
+        <svg class="loading-progress" viewBox="0 0 120 120" role="img" aria-label="Loading release notes">
+            <defs><linearGradient id="note-gradient" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8b5cf6"/><stop offset="1" stop-color="#512bd4"/></linearGradient></defs>
+            <g class="loading-page">
+                <path fill="url(#note-gradient)" d="M24 10h50l22 22v72a6 6 0 0 1-6 6H24a6 6 0 0 1-6-6V16a6 6 0 0 1 6-6Z"/>
+                <path fill="#c4b5fd" d="M74 10v22h22Z"/>
+                <circle cx="37" cy="48" r="8" fill="#fff"/><path d="m33 48 3 3 6-7" fill="none" stroke="#512bd4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                <path class="loading-line" d="M51 47h28" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+                <path class="loading-line" d="M33 68h46" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+                <path class="loading-line" d="M33 87h35" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+            </g>
+            <path d="m99 54 3 8 8 3-8 3-3 8-3-8-8-3 8-3Z" fill="#fbbf24"/>
         </svg>
         <div class="loading-progress-text"></div>
+        </div>
     </div>
 
     <div id="blazor-error-ui">
