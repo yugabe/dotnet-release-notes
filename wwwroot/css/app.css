@@ -545,6 +545,10 @@ code {
 }
 
 @media (max-width: 991px) {
+    .release-layout-toggle {
+        display: none;
+    }
+
     .release-notes-layout {
         grid-template-columns: minmax(0, 1fr);
     }

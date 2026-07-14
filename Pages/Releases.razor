@@ -24,7 +24,7 @@
         </div>
         <div class="release-topbar-right">
             <button class="btn btn-outline-secondary btn-sm me-2" @onclick="CycleThemeMode" aria-label="@GetThemeButtonTitle()" title="@GetThemeButtonTitle()">@GetThemeButtonIcon()</button>
-            <button class="btn btn-outline-secondary btn-sm" @onclick="ToggleWideLayout" aria-pressed="@IsWideLayout" aria-label="@(IsWideLayout ? "Switch to narrow layout" : "Switch to wide layout")" title="@(IsWideLayout ? "Switch to narrow layout" : "Switch to wide layout")">@(IsWideLayout ? "⤡" : "⤢")</button>
+            <button class="btn btn-outline-secondary btn-sm release-layout-toggle" @onclick="ToggleWideLayout" aria-pressed="@IsWideLayout" aria-label="@(IsWideLayout ? "Switch to narrow layout" : "Switch to wide layout")" title="@(IsWideLayout ? "Switch to narrow layout" : "Switch to wide layout")">@(IsWideLayout ? "⤡" : "⤢")</button>
         </div>
     </div>
 
