@@ -7,11 +7,6 @@
     max-width: 1600px;
 }
 
-.combined-output {
-    border-top: 1px solid #ddd;
-    padding-top: 1rem;
-}
-
 .combined-content {
     font-size: 1rem;
     line-height: 1.75;
@@ -29,8 +24,3 @@
     color: #555;
 }
 
-@media (max-width: 768px) {
-    .combine-page {
-        padding: 0 1rem;
-    }
-}

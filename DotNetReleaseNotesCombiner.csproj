@@ -14,4 +14,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.Gateway" Version="11.0.0-preview.5.26302.115" PrivateAssets="all" />
   </ItemGroup>
 
+  <ItemGroup>
+    <StaticWebAssetFingerprintPattern Include="AppJs" Pattern="*.js" Expression="#[.{fingerprint}]!" />
+  </ItemGroup>
+
 </Project>

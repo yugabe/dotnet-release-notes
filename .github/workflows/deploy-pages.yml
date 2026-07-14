@@ -32,6 +32,7 @@ jobs:
           base="/$repo/"
           [[ "$repo" == "$owner.github.io" ]] && base="/"
           sed -i "s|<base href=\"/\" />|<base href=\"$base\" />|" publish/wwwroot/index.html
+          sed -i -E "s|href=\"([^\"]+\.css)\"|href=\"\1?v=${GITHUB_SHA}\"|g" publish/wwwroot/index.html
           cp publish/wwwroot/index.html publish/wwwroot/404.html
           touch publish/wwwroot/.nojekyll
       - uses: actions/configure-pages@v5
